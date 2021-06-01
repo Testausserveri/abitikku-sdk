@@ -1,14 +1,11 @@
 {
-  "name": "etcher-sdk",
+  "name": "abotikku-sdk",
   "version": "6.2.1",
   "description": "Etcher SDK",
-  "author": "Balena.io Ltd <hello@etcher.io> (https://balena.io)",
+  "author": "Testausserveri <masterminds@testausserveri.fi> (https://testausserveri.fi)",
   "main": "build/index.js",
   "license": "Apache-2.0",
   "types": "build/index.d.ts",
-  "contributors": [
-    "Alexis Svinartchouk <alexis@balena.io>"
-  ],
   "scripts": {
     "test": "npm run lint && mocha -r ts-node/register tests/**/*.spec.ts",
     "prettier": "balena-lint --typescript --fix lib typings examples tests",
@@ -36,13 +33,13 @@
     "balena",
     "balenaos"
   ],
-  "homepage": "https://github.com/balena-io-modules/etcher-sdk",
+  "homepage": "https://abitikku.testausserveri.fi",
   "repository": {
     "type": "git",
-    "url": "https://github.com/balena-io-modules/etcher-sdk.git"
+    "url": "https://github.com/Testausserveri/abitikku-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/balena-io-modules/etcher-sdk/issues"
+    "url": "https://github.com/Testausserveri/abitikku-sdk/issues"
   },
   "optionalDependencies": {
     "winusb-driver-generator": "^1.2.3"
