@@ -17,6 +17,8 @@
 import { isAlignedLockableBuffer } from './aligned-lockable-buffer';
 import { SparseStreamChunk } from './sparse-stream/shared';
 
+import * as path from 'path';
+
 export interface Dictionary<T> {
 	[key: string]: T;
 }
@@ -89,6 +91,19 @@ export async function sparseStreamToBuffer(
 		chunk.buffer.copy(result, chunk.position);
 	}
 	return result;
+}
+
+export function getLocalStorage() {
+	switch(process.platform) {
+		case 'win32':
+			return path.join(process.env.LOCALAPPDATA!, 'abitikku-sdk');
+		case 'darwin':
+			return path.join(process.env.HOME!, 'Library', 'Application Support', 'abitikku-sdk');
+		case 'linux':
+			return process.env.XDG_DATA_HOME || path.join(process.env.HOME!, '.local', 'share', 'abitikku-sdk');
+		default:
+			throw new Error(`Unsupported platform: ${process.platform}`);
+	}
 }
 
 export function difference<T>(setA: Set<T>, setB: Set<T>): Set<T> {

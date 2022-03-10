@@ -30,12 +30,18 @@ import {
 	SourceDestination,
 } from './source-destination';
 
+import { getLocalStorage } from '../utils';
+
+import * as fs from 'fs';
+import * as path from 'path';
+
 axios.defaults.adapter = axiosNodeAdapter;
 
 export class Http extends SourceDestination {
 	// Only implements reading for now
 	private url: string;
 	private redirectUrl: string;
+	private useCache: boolean;
 	private avoidRandomAccess: boolean;
 	private size: number | undefined;
 	private acceptsRange: boolean;
@@ -45,15 +51,18 @@ export class Http extends SourceDestination {
 
 	constructor({
 		url,
+		useCache = false,
 		avoidRandomAccess = false,
 		axiosInstance = axios.create(),
 	}: {
 		url: string;
+		useCache?: boolean;
 		avoidRandomAccess?: boolean;
 		axiosInstance?: AxiosInstance;
 	}) {
 		super();
 		this.url = url;
+		this.useCache = useCache;
 		this.avoidRandomAccess = avoidRandomAccess;
 		this.axiosInstance = axiosInstance;
 		this.ready = this.getInfo();
@@ -146,6 +155,25 @@ export class Http extends SourceDestination {
 		start = 0,
 		end,
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
+		let cacheStream: fs.WriteStream | undefined;
+		let dataEnd: (() => void) | undefined;
+		if (this.useCache) {
+			const name = (await this.getMetadata()).name;
+			if (name) {
+				const localStorage = getLocalStorage();
+				fs.mkdirSync(localStorage, { recursive: true });
+				const cacheFile = path.join(localStorage, name);
+
+				if (fs.existsSync(cacheFile) && fs.statSync(cacheFile).size === this.size) {
+					return fs.createReadStream(cacheFile);
+				} else {
+					const filePath = path.join(localStorage, name + '.part');
+					cacheStream = fs.createWriteStream(filePath);
+					dataEnd = () => fs.renameSync(filePath, cacheFile);
+				}
+			}
+		}
+
 		const response = await this.axiosInstance({
 			method: 'get',
 			url: this.redirectUrl,
@@ -154,6 +182,12 @@ export class Http extends SourceDestination {
 			},
 			responseType: 'stream',
 		});
+
+		if (cacheStream) {
+			response.data.pipe(cacheStream);
+			response.data.pause();
+		}
+		if (dataEnd) response.data.on('end', dataEnd);
 		if (emitProgress) {
 			let bytes = 0;
 			let lastTime = Date.now();
