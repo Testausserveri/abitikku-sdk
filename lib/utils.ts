@@ -94,12 +94,15 @@ export async function sparseStreamToBuffer(
 }
 
 export function getLocalStorage() {
-	switch(process.platform) {
+	switch (process.platform) {
 		case 'win32':
+			// prettier-ignore
 			return path.join(process.env.LOCALAPPDATA!, 'abitikku-sdk');
 		case 'darwin':
+			// prettier-ignore
 			return path.join(process.env.HOME!, 'Library', 'Application Support', 'abitikku-sdk');
 		case 'linux':
+			// prettier-ignore
 			return process.env.XDG_DATA_HOME || path.join(process.env.HOME!, '.local', 'share', 'abitikku-sdk');
 		default:
 			throw new Error(`Unsupported platform: ${process.platform}`);

@@ -164,7 +164,10 @@ export class Http extends SourceDestination {
 				fs.mkdirSync(localStorage, { recursive: true });
 				const cacheFile = path.join(localStorage, name);
 
-				if (fs.existsSync(cacheFile) && fs.statSync(cacheFile).size === this.size) {
+				if (
+					fs.existsSync(cacheFile) &&
+					fs.statSync(cacheFile).size === this.size
+				) {
 					return fs.createReadStream(cacheFile);
 				} else {
 					const filePath = path.join(localStorage, name + '.part');
@@ -187,7 +190,9 @@ export class Http extends SourceDestination {
 			response.data.pipe(cacheStream);
 			response.data.pause();
 		}
-		if (dataEnd) response.data.on('end', dataEnd);
+		if (dataEnd) {
+			response.data.on('end', dataEnd);
+		}
 		if (emitProgress) {
 			let bytes = 0;
 			let lastTime = Date.now();
