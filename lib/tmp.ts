@@ -21,7 +21,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 const TMP_RANDOM_BYTES = 6;
-const TMP_DIR = join(tmpdir(), 'etcher');
+const TMP_DIR = join(tmpdir(), 'abitikku');
 const TRIES = 5;
 
 function randomFilePath(prefix: string, postfix: string): string {
