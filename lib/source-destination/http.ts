@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, {
+	AxiosBasicCredentials,
+	AxiosInstance,
+	AxiosResponse,
+} from 'axios';
 // Always use the node adapter (even in a browser)
 // @ts-ignore
 import * as axiosNodeAdapter from 'axios/lib/adapters/http';
@@ -36,9 +40,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 axios.defaults.adapter = axiosNodeAdapter;
-
 export class Http extends SourceDestination {
 	// Only implements reading for now
+	private fileName: string | undefined;
 	private url: string;
 	private redirectUrl: string;
 	private useCache: boolean;
@@ -54,17 +58,22 @@ export class Http extends SourceDestination {
 		useCache = false,
 		avoidRandomAccess = false,
 		axiosInstance = axios.create(),
+		auth,
 	}: {
 		url: string;
 		useCache?: boolean;
 		avoidRandomAccess?: boolean;
 		axiosInstance?: AxiosInstance;
+		auth?: AxiosBasicCredentials;
 	}) {
 		super();
 		this.url = url;
 		this.useCache = useCache;
 		this.avoidRandomAccess = avoidRandomAccess;
 		this.axiosInstance = axiosInstance;
+		if (auth) {
+			this.axiosInstance.defaults.auth = auth;
+		}
 		this.ready = this.getInfo();
 	}
 
@@ -87,6 +96,10 @@ export class Http extends SourceDestination {
 			if (Number.isNaN(this.size)) {
 				this.size = undefined;
 			}
+			const regExpFilename = /filename="(?<filename>.*)"/;
+			this.fileName =
+				regExpFilename.exec(response.headers['content-disposition'])?.groups
+					?.filename ?? undefined;
 			this.acceptsRange = response.headers['accept-ranges'] === 'bytes';
 		} catch (error) {
 			this.error = error;
@@ -110,14 +123,13 @@ export class Http extends SourceDestination {
 		if (this.error) {
 			throw this.error;
 		}
-		let name;
 		const pathname = parse(this.redirectUrl).pathname;
-		if (pathname !== undefined) {
-			name = basename(unescape(pathname));
+		if (!this.fileName && pathname !== undefined) {
+			this.fileName = basename(unescape(pathname));
 		}
 		return {
 			size: this.size,
-			name,
+			name: this.fileName,
 		};
 	}
 
@@ -137,7 +149,7 @@ export class Http extends SourceDestination {
 		sourceOffset: number,
 	): Promise<ReadResult> {
 		const response = await this.axiosInstance({
-			method: 'get',
+			method: this.axiosInstance.defaults.method || 'get',
 			url: this.redirectUrl,
 			responseType: 'arraybuffer',
 			headers: {
@@ -178,7 +190,7 @@ export class Http extends SourceDestination {
 		}
 
 		const response = await this.axiosInstance({
-			method: 'get',
+			method: this.axiosInstance.defaults.method || 'get',
 			url: this.redirectUrl,
 			headers: {
 				Range: this.getRange(start, end),
