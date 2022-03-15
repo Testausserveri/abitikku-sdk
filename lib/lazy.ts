@@ -21,14 +21,6 @@ import { once } from './utils';
 
 export type XXHash = typeof xxhash;
 
-export const getRaspberrypiUsbboot = once(() => {
-	try {
-		return require('node-raspberrypi-usbboot') as typeof import('node-raspberrypi-usbboot');
-	} catch (e) {
-		console.warn('Failed to import node-raspberrypi-usbboot:', e);
-	}
-});
-
 export const getXXHash = once(
 	() => require('xxhash-addon') as typeof import('xxhash-addon'),
 );
