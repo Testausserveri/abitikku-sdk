@@ -284,6 +284,7 @@ export interface CreateReadStreamOptions {
 	end?: number;
 	alignment?: number;
 	numBuffers?: number;
+	forceDisableCache?: boolean;
 }
 
 export interface CreateSparseReadStreamOptions {

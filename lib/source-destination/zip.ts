@@ -136,7 +136,7 @@ class SourceRandomAccessReader extends RandomAccessReader {
 		// Workaround this method not being async with a passthrough stream
 		const passthrough = new PassThrough();
 		this.source
-			.createReadStream({ start, end: end - 1 })
+			.createReadStream({ start, end: end - 1, forceDisableCache: true })
 			.then((stream) => {
 				stream.on('error', passthrough.emit.bind(passthrough, 'error'));
 				stream.pipe(passthrough);
@@ -311,6 +311,7 @@ export class RandomAccessZipSource extends SourceSource {
 		const stream = await this.createReadStream({
 			alignment,
 			numBuffers,
+			forceDisableCache: true
 		});
 		stream.pipe(transform);
 		return transform;

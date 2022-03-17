@@ -166,10 +166,11 @@ export class Http extends SourceDestination {
 		emitProgress = false,
 		start = 0,
 		end,
+		forceDisableCache = false
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
 		let cacheStream: fs.WriteStream | undefined;
 		let dataEnd: (() => void) | undefined;
-		if (this.useCache) {
+		if (this.useCache && !forceDisableCache) {
 			const name = (await this.getMetadata()).name;
 			if (name) {
 				const localStorage = getLocalStorage();
@@ -182,9 +183,11 @@ export class Http extends SourceDestination {
 				) {
 					return fs.createReadStream(cacheFile);
 				} else {
-					const filePath = path.join(localStorage, name + '.part');
-					cacheStream = fs.createWriteStream(filePath);
-					dataEnd = () => fs.renameSync(filePath, cacheFile);
+					try {
+						const filePath = path.join(localStorage, name + '.part');
+						cacheStream = fs.createWriteStream(filePath);
+						dataEnd = () => fs.renameSync(filePath, cacheFile);
+					} catch (e) {}
 				}
 			}
 		}
