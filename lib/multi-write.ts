@@ -109,7 +109,7 @@ function defaultEnoughSpaceForDecompression(free: number, imageSize?: number) {
 		: imageSize < Math.min(free / 2, 5 * 1024 ** 3);
 }
 
-const configureCache = async (source: SourceDestination, sourceMetadata: Metadata) => {
+const configureCache = async (source: SourceDestination, sourceMetadata: Metadata, originalImageName: string | undefined) => {
 	let cache = source instanceof Http || (source instanceof ZipSource && ((source as SourceSource).getSource() instanceof Http));
 	// Write metadata to fs
 	if (cache && sourceMetadata.name) {
@@ -119,7 +119,7 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 			const cacheMetadataFile = join(localStorage, 'metadata.json');
 
 			let changedMetaData = (sourceMetadata as any);
-			changedMetaData.version = sourceMetadata.name
+			changedMetaData.version = originalImageName
 
 			await fs.writeFile(cacheMetadataFile, JSON.stringify(changedMetaData));
 	}
@@ -153,6 +153,7 @@ export async function decompressThenFlash({
 	configure,
 	enoughSpaceForDecompression = defaultEnoughSpaceForDecompression,
 	asItIs = false,
+	originalImageName
 }: {
 	source: SourceDestination;
 	destinations: SourceDestination[];
@@ -186,7 +187,7 @@ export async function decompressThenFlash({
 			enoughDiskSpaceAvailable
 		) {
 			// Check for cache
-			await configureCache(source, originalSourceMetaData);
+			await configureCache(source, originalSourceMetaData, originalImageName);
 
 			let decompressedSource: SourceDestination;
 				({ path: decompressedFilePath } = await tmpFile({
