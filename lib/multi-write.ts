@@ -147,7 +147,7 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 	return {inputStream, cacheAvailable: cache, cacheStream, dataEnd}
 }
 
-export async function isCacheAvailableForSource(source: SourceDestination, sourceMetadata: Metadata) {
+export async function isCacheAvailableForSource(source: SourceDestination, sourceMetadata: Metadata): Promise<boolean> {
 	let cache = source instanceof Http;
 	if (cache && sourceMetadata.name) {
 		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "");
@@ -163,7 +163,7 @@ export async function isCacheAvailableForSource(source: SourceDestination, sourc
 	return false;
 }
 
-export async function getLocalCacheFile() {
+export async function getLocalCacheFile(): Promise<{ name: string, metadata: Metadata } | undefined> {
 	try {
 		const localStorage = getLocalStorage();
 		const cacheMetadataFile = join(localStorage, 'metadata.json');
@@ -171,7 +171,7 @@ export async function getLocalCacheFile() {
 		if (metadata && metadata.name && metadata.size) {
 			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "");
 			if (node_fs.existsSync(name) && node_fs.statSync(name).size === metadata.size) {
-				return name;
+				return {name, metadata};
 			}
 		}
 	} catch (e) {}
