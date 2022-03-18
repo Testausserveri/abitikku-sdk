@@ -109,70 +109,20 @@ function defaultEnoughSpaceForDecompression(free: number, imageSize?: number) {
 		: imageSize < Math.min(free / 2, 5 * 1024 ** 3);
 }
 
-const configureCache = async (source: SourceDestination, sourceMetadata: Metadata, originalImageName: string | undefined) => {
+const configureCache = async (source: SourceDestination, sourceMetadata: Metadata) => {
 	let cache = source instanceof Http || (source instanceof ZipSource && ((source as SourceSource).getSource() instanceof Http));
-	let cacheFileSource: File | undefined = undefined;
-	let dataEnd: (() => void) | undefined;
 	// Write metadata to fs
-	let imageName = originalImageName || sourceMetadata.name
-	if (cache && imageName) {
-			const name = imageName+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".cache.img";
+	if (cache && sourceMetadata.name) {
 			const localStorage = getLocalStorage();
 			await fs.mkdir(localStorage, { recursive: true });
-			const cacheFile = join(localStorage, name);
+
 			const cacheMetadataFile = join(localStorage, 'metadata.json');
-			const cacheVersionMetadataFile = join(localStorage, name+'.json');
+
 			let changedMetaData = (sourceMetadata as any);
-			changedMetaData.name = imageName
+			changedMetaData.version = sourceMetadata.name
+
 			await fs.writeFile(cacheMetadataFile, JSON.stringify(changedMetaData));
-			await fs.writeFile(cacheVersionMetadataFile, JSON.stringify(changedMetaData));
-		  const metadataFile = new File({
-			  path: cacheMetadataFile,
-			  write: true
-		  });
-			const imageCache = new File({
-				path: cacheFile,
-				write: true
-			});
-
-
-			if (
-				!node_fs.existsSync(cacheFile) ||
-				node_fs.statSync(cacheFile).size !== sourceMetadata.size
-			) {
-				try {
-					cacheFileSource = imageCache;
-					dataEnd = async () => {
-						// Write cache after data is written
-						await metadataFile.open()
-						let writeStream = await metadataFile.createWriteStream();
-						let changedMetaData = sourceMetadata;
-						changedMetaData.name = imageName
-						writeStream.write(JSON.stringify(changedMetaData))
-						writeStream.end();
-						await metadataFile.close();
-					};
-				} catch (e) {}
-			}
 	}
-
-	return {cacheAvailable: cache, cacheFileSource, dataEnd}
-}
-
-export async function isCacheAvailableForSource(source: SourceDestination, sourceMetadata: Metadata): Promise<boolean> {
-	let cache = source instanceof Http || (source instanceof ZipSource && ((source as SourceSource).getSource() instanceof Http));
-	if (cache && sourceMetadata.name) {
-		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".img";
-		const localStorage = getLocalStorage();
-		await fs.mkdir(localStorage, { recursive: true });
-		const cacheFile = join(localStorage, name);
-
-		return (
-			node_fs.existsSync(cacheFile) &&
-			node_fs.statSync(cacheFile).size === sourceMetadata.size
-		)
-	}
-	return false;
 }
 
 export async function getLocalCacheFile(): Promise<{ name: string, metadata: Metadata } | undefined> {
@@ -181,23 +131,7 @@ export async function getLocalCacheFile(): Promise<{ name: string, metadata: Met
 		const cacheMetadataFile = join(localStorage, 'metadata.json');
 		let metadata: Metadata = JSON.parse((await fs.readFile(cacheMetadataFile)).toString('utf-8'))
 		if (metadata && metadata.name && metadata.size) {
-			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "")+".img";
-			const cacheFile = join(localStorage, name);
-			if (node_fs.existsSync(cacheFile) && node_fs.statSync(cacheFile).size === metadata.size) {
-				return {name: cacheFile, metadata};
-			}
-		}
-	} catch (e) {}
-	return undefined;
-}
-
-export async function getLocalCacheForVersion(version: string): Promise<{ name: string, metadata: Metadata } | undefined> {
-	try {
-		const localStorage = getLocalStorage();
-		const cacheMetadataFile = join(localStorage, version+'.json');
-		let metadata: Metadata = JSON.parse((await fs.readFile(cacheMetadataFile)).toString('utf-8'))
-		if (metadata && metadata.name && metadata.size) {
-			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "")+".img";
+			const name = metadata.name;
 			const cacheFile = join(localStorage, name);
 			if (node_fs.existsSync(cacheFile) && node_fs.statSync(cacheFile).size === metadata.size) {
 				return {name: cacheFile, metadata};
@@ -219,7 +153,6 @@ export async function decompressThenFlash({
 	configure,
 	enoughSpaceForDecompression = defaultEnoughSpaceForDecompression,
 	asItIs = false,
-	originalImageName
 }: {
 	source: SourceDestination;
 	destinations: SourceDestination[];
@@ -235,6 +168,7 @@ export async function decompressThenFlash({
 	originalImageName: string | undefined
 }): Promise<PipeSourceToDestinationsResult> {
 	await source.open();
+	const originalSourceMetaData = await source.getMetadata();
 	if (!asItIs) {
 		source = await source.getInnerSource();
 	}
@@ -252,10 +186,9 @@ export async function decompressThenFlash({
 			enoughDiskSpaceAvailable
 		) {
 			// Check for cache
-			const {cacheFileSource, dataEnd} = await configureCache(source, sourceMetadata, originalImageName);
+			await configureCache(source, originalSourceMetaData);
 
 			let decompressedSource: SourceDestination;
-			if (cacheFileSource === undefined) {
 				({ path: decompressedFilePath } = await tmpFile({
 					keepOpen: false,
 					prefix: DECOMPRESSED_IMAGE_PREFIX,
@@ -265,10 +198,6 @@ export async function decompressThenFlash({
 					path: decompressedFilePath,
 					write: true,
 				});
-
-			} else {
-				decompressedSource = cacheFileSource;
-			}
 			await decompressedSource.open();
 
 			const outputStream = await decompressedSource.createWriteStream();
@@ -277,9 +206,6 @@ export async function decompressThenFlash({
 				outputStream.on('done', resolve);
 				outputStream.on('error', reject);
 				inputStream.on('error', reject);
-				if (dataEnd) {
-					outputStream.on('end', dataEnd);
-				}
 				const state = {
 					active: 0,
 					failed: 0,
