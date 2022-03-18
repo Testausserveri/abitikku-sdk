@@ -23,6 +23,10 @@ export class SourceSource extends SourceDestination {
 		super();
 	}
 
+	public getSource() {
+		return this.source;
+	}
+
 	protected async _open(): Promise<void> {
 		await this.source.open();
 	}

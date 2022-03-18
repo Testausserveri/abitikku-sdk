@@ -21,7 +21,7 @@ import { extname, join } from 'path';
 import { BlockReadStream } from './block-read-stream';
 import { BlockTransformStream } from './block-transform-stream';
 import { CHUNK_SIZE } from './constants';
-import { getRootStream } from './source-destination';
+import {getRootStream, SourceSource, ZipSource} from './source-destination';
 import {
 	ConfiguredSource,
 	ConfigureFunction,
@@ -110,13 +110,13 @@ function defaultEnoughSpaceForDecompression(free: number, imageSize?: number) {
 }
 
 const configureCache = async (source: SourceDestination, sourceMetadata: Metadata) => {
-	let cache = (await source.getInnerSource()) instanceof Http;
+	let cache = source instanceof Http || (source instanceof ZipSource && ((source as SourceSource).getSource() instanceof Http));
 	let cacheFileSource: File | undefined = undefined;
 	let dataEnd: (() => void) | undefined;
 	// Write metadata to fs
 
 	if (cache && sourceMetadata.name) {
-			const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "");
+			const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".cache";
 			const localStorage = getLocalStorage();
 			await fs.mkdir(localStorage, { recursive: true });
 			const cacheFile = join(localStorage, name);
@@ -154,9 +154,9 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 }
 
 export async function isCacheAvailableForSource(source: SourceDestination, sourceMetadata: Metadata): Promise<boolean> {
-	let cache = source instanceof Http;
+	let cache = source instanceof Http || (source instanceof ZipSource && ((source as SourceSource).getSource() instanceof Http));
 	if (cache && sourceMetadata.name) {
-		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "");
+		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".cache";
 		const localStorage = getLocalStorage();
 		await fs.mkdir(localStorage, { recursive: true });
 		const cacheFile = join(localStorage, name);
@@ -175,7 +175,7 @@ export async function getLocalCacheFile(): Promise<{ name: string, metadata: Met
 		const cacheMetadataFile = join(localStorage, 'metadata.json');
 		let metadata: Metadata = JSON.parse((await fs.readFile(cacheMetadataFile)).toString('utf-8'))
 		if (metadata && metadata.name && metadata.size) {
-			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "");
+			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "")+".cache";
 			if (node_fs.existsSync(name) && node_fs.statSync(name).size === metadata.size) {
 				return {name, metadata};
 			}
