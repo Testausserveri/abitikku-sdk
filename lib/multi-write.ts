@@ -109,14 +109,14 @@ function defaultEnoughSpaceForDecompression(free: number, imageSize?: number) {
 		: imageSize < Math.min(free / 2, 5 * 1024 ** 3);
 }
 
-const configureCache = async (source: SourceDestination, sourceMetadata: Metadata) => {
+const configureCache = async (source: SourceDestination, sourceMetadata: Metadata, originalImageName: string | undefined) => {
 	let cache = source instanceof Http || (source instanceof ZipSource && ((source as SourceSource).getSource() instanceof Http));
 	let cacheFileSource: File | undefined = undefined;
 	let dataEnd: (() => void) | undefined;
 	// Write metadata to fs
-
-	if (cache && sourceMetadata.name) {
-			const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".cache";
+	let imageName = originalImageName || sourceMetadata.name
+	if (cache && imageName) {
+			const name = imageName+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".cache";
 			const localStorage = getLocalStorage();
 			await fs.mkdir(localStorage, { recursive: true });
 			const cacheFile = join(localStorage, name);
@@ -142,7 +142,9 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 						// Write cache after data is written
 						await metadataFile.open()
 						let writeStream = await metadataFile.createWriteStream();
-						writeStream.write(JSON.stringify(sourceMetadata))
+						let changedMetaData = sourceMetadata;
+						changedMetaData.name = imageName
+						writeStream.write(JSON.stringify(changedMetaData))
 						writeStream.end();
 						await metadataFile.close();
 					};
@@ -197,6 +199,7 @@ export async function decompressThenFlash({
 	configure,
 	enoughSpaceForDecompression = defaultEnoughSpaceForDecompression,
 	asItIs = false,
+	originalImageName
 }: {
 	source: SourceDestination;
 	destinations: SourceDestination[];
@@ -209,6 +212,7 @@ export async function decompressThenFlash({
 	configure?: ConfigureFunction;
 	enoughSpaceForDecompression?: (free: number, imageSize?: number) => boolean;
 	asItIs?: boolean;
+	originalImageName: string | undefined
 }): Promise<PipeSourceToDestinationsResult> {
 	await source.open();
 	if (!asItIs) {
@@ -228,7 +232,7 @@ export async function decompressThenFlash({
 			enoughDiskSpaceAvailable
 		) {
 			// Check for cache
-			const {cacheFileSource, dataEnd} = await configureCache(source, sourceMetadata);
+			const {cacheFileSource, dataEnd} = await configureCache(source, sourceMetadata, originalImageName);
 
 			let decompressedSource: SourceDestination;
 			if (cacheFileSource === undefined) {
