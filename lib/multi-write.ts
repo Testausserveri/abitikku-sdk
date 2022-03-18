@@ -116,12 +116,16 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 	// Write metadata to fs
 	let imageName = originalImageName || sourceMetadata.name
 	if (cache && imageName) {
-			const name = imageName+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".cache";
+			const name = imageName+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".cache.img";
 			const localStorage = getLocalStorage();
 			await fs.mkdir(localStorage, { recursive: true });
 			const cacheFile = join(localStorage, name);
 			const cacheMetadataFile = join(localStorage, 'metadata.json');
-			await fs.writeFile(cacheMetadataFile, JSON.stringify(sourceMetadata));
+			const cacheVersionMetadataFile = join(localStorage, name+'.json');
+			let changedMetaData = (sourceMetadata as any);
+			changedMetaData.name = imageName
+			await fs.writeFile(cacheMetadataFile, JSON.stringify(changedMetaData));
+			await fs.writeFile(cacheVersionMetadataFile, JSON.stringify(changedMetaData));
 		  const metadataFile = new File({
 			  path: cacheMetadataFile,
 			  write: true
@@ -158,7 +162,7 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 export async function isCacheAvailableForSource(source: SourceDestination, sourceMetadata: Metadata): Promise<boolean> {
 	let cache = source instanceof Http || (source instanceof ZipSource && ((source as SourceSource).getSource() instanceof Http));
 	if (cache && sourceMetadata.name) {
-		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".cache";
+		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "")+".img";
 		const localStorage = getLocalStorage();
 		await fs.mkdir(localStorage, { recursive: true });
 		const cacheFile = join(localStorage, name);
@@ -177,7 +181,23 @@ export async function getLocalCacheFile(): Promise<{ name: string, metadata: Met
 		const cacheMetadataFile = join(localStorage, 'metadata.json');
 		let metadata: Metadata = JSON.parse((await fs.readFile(cacheMetadataFile)).toString('utf-8'))
 		if (metadata && metadata.name && metadata.size) {
-			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "")+".cache";
+			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "")+".img";
+			const cacheFile = join(localStorage, name);
+			if (node_fs.existsSync(cacheFile) && node_fs.statSync(cacheFile).size === metadata.size) {
+				return {name: cacheFile, metadata};
+			}
+		}
+	} catch (e) {}
+	return undefined;
+}
+
+export async function getLocalCacheForVersion(version: string): Promise<{ name: string, metadata: Metadata } | undefined> {
+	try {
+		const localStorage = getLocalStorage();
+		const cacheMetadataFile = join(localStorage, version+'.json');
+		let metadata: Metadata = JSON.parse((await fs.readFile(cacheMetadataFile)).toString('utf-8'))
+		if (metadata && metadata.name && metadata.size) {
+			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "")+".img";
 			const cacheFile = join(localStorage, name);
 			if (node_fs.existsSync(cacheFile) && node_fs.statSync(cacheFile).size === metadata.size) {
 				return {name: cacheFile, metadata};
