@@ -43,6 +43,7 @@ import { freeSpace, tmpFile } from './tmp';
 import {Http} from "./source-destination";
 import {getLocalStorage} from "./utils";
 import ReadableStream = NodeJS.ReadableStream;
+import {PassThrough} from "stream";
 
 export type WriteStep = 'decompressing' | 'flashing' | 'verifying' | 'finished';
 
@@ -238,8 +239,10 @@ export async function decompressThenFlash({
 				outputStream.on('done', resolve);
 				outputStream.on('error', reject);
 				inputStream.on('error', reject);
+				const passThrough = new PassThrough();
+				inputStream.pipe(passThrough);
 				if (dataEnd) {
-					inputStream.on('end', dataEnd);
+					passThrough.on('end', dataEnd);
 				}
 				const state = {
 					active: 0,
@@ -256,7 +259,10 @@ export async function decompressThenFlash({
 				outputStream.on('progress', $onProgress);
 				inputStream.pipe(outputStream);
 				if (cacheStream) {
-					inputStream.pipe(cacheStream)
+					passThrough.on('data', function (chunk) {
+						cacheStream?.write(chunk);
+					})
+					inputStream.pipe(passThrough)
 				}
 			});
 			source = decompressedSource;
