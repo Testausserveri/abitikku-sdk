@@ -172,7 +172,7 @@ export class Http extends SourceDestination {
 		let dataEnd: (() => void) | undefined;
 		console.log("Http createReadStream", start, end, enableCache)
 		// When writing image, no end is defined
-		if (enableCache && end == 0) {
+		if (enableCache && end === undefined) {
 			const name = (await this.getMetadata()).name;
 			if (name) {
 				const localStorage = getLocalStorage();
