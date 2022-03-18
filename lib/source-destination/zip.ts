@@ -84,7 +84,7 @@ export class StreamZipSource extends SourceSource {
 	private async getEntry(cache: boolean = false): Promise<ZipStreamEntry> {
 		if (this.entry === undefined) {
 			const entry = await getFileStreamFromZipStream(
-				await this.source.createReadStream({forceDisableCache: !cache}),
+				await this.source.createReadStream({enableCache: !cache}),
 				this.match,
 			);
 			this.entry = entry;
@@ -102,12 +102,12 @@ export class StreamZipSource extends SourceSource {
 	public async createReadStream({
 		start = 0,
 		end,
-		forceDisableCache = false
+		enableCache = false
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
 		if (start !== 0) {
 			throw new NotCapable();
 		}
-		const stream = await this.getEntry(forceDisableCache);
+		const stream = await this.getEntry(enableCache);
 		if (end !== undefined) {
 			// TODO: handle errors on stream after transform finsh event
 			const transform = new StreamLimiter(stream, end + 1);
@@ -127,10 +127,10 @@ export class StreamZipSource extends SourceSource {
 }
 
 class SourceRandomAccessReader extends RandomAccessReader {
-	forceDisableCache = false
-	constructor(private source: SourceDestination, forceDisableCache: boolean = false) {
+	enableCache = false
+	constructor(private source: SourceDestination, enableCache: boolean = false) {
 		super();
-		this.forceDisableCache = forceDisableCache;
+		this.enableCache = enableCache;
 	}
 
 	public _readStreamForRange(start: number, end: number) {
@@ -139,7 +139,7 @@ class SourceRandomAccessReader extends RandomAccessReader {
 		// Workaround this method not being async with a passthrough stream
 		const passthrough = new PassThrough();
 		this.source
-			.createReadStream({ start, end: end - 1, forceDisableCache: this.forceDisableCache })
+			.createReadStream({ start, end: end - 1, enableCache: this.enableCache })
 			.then((stream) => {
 				stream.on('error', passthrough.emit.bind(passthrough, 'error'));
 				stream.pipe(passthrough);
@@ -318,7 +318,7 @@ export class RandomAccessZipSource extends SourceSource {
 		generateChecksums = false,
 		alignment,
 		numBuffers,
-		forceDisableCache = false
+		enableCache = false
 	}: CreateSparseReadStreamOptions = {}): Promise<SparseFilterStream> {
 		const metadata = await this.getMetadata();
 		if (metadata.blocks === undefined) {
@@ -333,7 +333,7 @@ export class RandomAccessZipSource extends SourceSource {
 		const stream = await this.createReadStream({
 			alignment,
 			numBuffers,
-			forceDisableCache
+			enableCache
 		});
 		stream.pipe(transform);
 		return transform;
@@ -420,12 +420,14 @@ export class ZipSource extends SourceSource {
 		end,
 		alignment,
 		numBuffers,
+		enableCache = false
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
 		await this.ready;
 		const stream = await this.implementation.createReadStream({
 			emitProgress,
 			start,
 			end,
+			enableCache: enableCache
 		});
 		return BlockTransformStream.alignIfNeeded(stream, alignment, numBuffers);
 	}
@@ -434,12 +436,14 @@ export class ZipSource extends SourceSource {
 		generateChecksums = false,
 		alignment,
 		numBuffers,
+		enableCache = false
 	}: CreateSparseReadStreamOptions = {}): Promise<SparseReadable> {
 		await this.ready;
 		return await this.implementation.createSparseReadStream({
 			generateChecksums,
 			alignment,
 			numBuffers,
+			enableCache
 		});
 	}
 

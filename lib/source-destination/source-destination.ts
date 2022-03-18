@@ -284,14 +284,14 @@ export interface CreateReadStreamOptions {
 	end?: number;
 	alignment?: number;
 	numBuffers?: number;
-	forceDisableCache?: boolean;
+	enableCache?: boolean;
 }
 
 export interface CreateSparseReadStreamOptions {
 	generateChecksums?: boolean;
 	alignment?: number;
 	numBuffers?: number;
-	forceDisableCache?: boolean;
+	enableCache?: boolean;
 }
 
 export class SourceDestination extends EventEmitter {

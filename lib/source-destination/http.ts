@@ -166,11 +166,11 @@ export class Http extends SourceDestination {
 		emitProgress = false,
 		start = 0,
 		end,
-		forceDisableCache = false
+		enableCache = false
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
 		let cacheStream: fs.WriteStream | undefined;
 		let dataEnd: (() => void) | undefined;
-		if (this.useCache && !forceDisableCache) {
+		if (this.useCache && enableCache) {
 			const name = (await this.getMetadata()).name;
 			if (name) {
 				const localStorage = getLocalStorage();

@@ -157,7 +157,7 @@ export async function decompressThenFlash({
 				write: true,
 			});
 			await decompressedSource.open();
-			const inputStream = await source.createReadStream();
+			const inputStream = await source.createReadStream({enableCache: true});
 			const outputStream = await decompressedSource.createWriteStream();
 			await new Promise((resolve, reject) => {
 				outputStream.on('done', resolve);
@@ -397,6 +397,7 @@ async function pipeRegularSourceToDestination(
 			emitProgress: emitSourceProgress,
 			alignment,
 			numBuffers,
+			enableCache: true
 		}),
 		destination.createWriteStream({ highWaterMark }),
 	]);
@@ -497,6 +498,7 @@ async function pipeSparseSourceToDestination(
 			generateChecksums: verify,
 			alignment,
 			numBuffers,
+			enableCache: true
 		}),
 		destination.createSparseWriteStream({ highWaterMark }),
 	]);
