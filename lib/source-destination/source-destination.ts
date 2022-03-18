@@ -291,6 +291,7 @@ export interface CreateSparseReadStreamOptions {
 	generateChecksums?: boolean;
 	alignment?: number;
 	numBuffers?: number;
+	forceDisableCache?: boolean;
 }
 
 export class SourceDestination extends EventEmitter {

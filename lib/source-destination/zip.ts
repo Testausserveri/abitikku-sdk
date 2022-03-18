@@ -81,10 +81,10 @@ export class StreamZipSource extends SourceSource {
 		return true;
 	}
 
-	private async getEntry(): Promise<ZipStreamEntry> {
+	private async getEntry(cache: boolean = false): Promise<ZipStreamEntry> {
 		if (this.entry === undefined) {
 			const entry = await getFileStreamFromZipStream(
-				await this.source.createReadStream(),
+				await this.source.createReadStream({forceDisableCache: !cache}),
 				this.match,
 			);
 			this.entry = entry;
@@ -102,11 +102,12 @@ export class StreamZipSource extends SourceSource {
 	public async createReadStream({
 		start = 0,
 		end,
+		forceDisableCache = false
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
 		if (start !== 0) {
 			throw new NotCapable();
 		}
-		const stream = await this.getEntry();
+		const stream = await this.getEntry(forceDisableCache);
 		if (end !== undefined) {
 			// TODO: handle errors on stream after transform finsh event
 			const transform = new StreamLimiter(stream, end + 1);
@@ -116,7 +117,7 @@ export class StreamZipSource extends SourceSource {
 	}
 
 	protected async _getMetadata(): Promise<Metadata> {
-		const entry = await this.getEntry();
+		const entry = await this.getEntry(true);
 		return {
 			size: entry.size,
 			compressedSize: entry.compressedSize,
@@ -126,8 +127,10 @@ export class StreamZipSource extends SourceSource {
 }
 
 class SourceRandomAccessReader extends RandomAccessReader {
-	constructor(private source: SourceDestination) {
+	forceDisableCache = false
+	constructor(private source: SourceDestination, forceDisableCache: boolean = false) {
 		super();
+		this.forceDisableCache = forceDisableCache;
 	}
 
 	public _readStreamForRange(start: number, end: number) {
@@ -136,7 +139,7 @@ class SourceRandomAccessReader extends RandomAccessReader {
 		// Workaround this method not being async with a passthrough stream
 		const passthrough = new PassThrough();
 		this.source
-			.createReadStream({ start, end: end - 1, forceDisableCache: true })
+			.createReadStream({ start, end: end - 1, forceDisableCache: this.forceDisableCache })
 			.then((stream) => {
 				stream.on('error', passthrough.emit.bind(passthrough, 'error'));
 				stream.pipe(passthrough);
@@ -157,6 +160,7 @@ export class RandomAccessZipSource extends SourceSource {
 		'url',
 		'version',
 	];
+	private cachedZip: ZipFile;
 	private zip: ZipFile;
 	private ready: Promise<void>;
 	private entries: Entry[] = [];
@@ -172,7 +176,8 @@ export class RandomAccessZipSource extends SourceSource {
 	private async init() {
 		await this.source.open();
 		const sourceMetadata = await this.source.getMetadata();
-		const reader = new SourceRandomAccessReader(this.source);
+		const cachedReader = new SourceRandomAccessReader(this.source);
+		const reader = new SourceRandomAccessReader(this.source, true);
 		this.zip = await fromCallback((callback) => {
 			if (sourceMetadata.size === undefined) {
 				throw new NotCapable();
@@ -187,9 +192,24 @@ export class RandomAccessZipSource extends SourceSource {
 		this.zip.on('entry', (entry: Entry) => {
 			this.entries.push(entry);
 		});
+		this.cachedZip = await fromCallback((callback) => {
+			if (sourceMetadata.size === undefined) {
+				throw new NotCapable();
+			}
+			fromRandomAccessReader(
+				cachedReader,
+				sourceMetadata.size,
+				{ autoClose: false },
+				callback,
+			);
+		});
 		await new Promise((resolve, reject) => {
 			this.zip.on('end', resolve);
 			this.zip.on('error', reject);
+		});
+		await new Promise((resolve, reject) => {
+			this.cachedZip.on('end', resolve);
+			this.cachedZip.on('error', reject);
 		});
 	}
 
@@ -240,28 +260,29 @@ export class RandomAccessZipSource extends SourceSource {
 
 	private async getStream(
 		name: string,
+		cache: boolean = false
 	): Promise<NodeJS.ReadableStream | undefined> {
 		const entry = await this.getEntryByName(name);
 		if (entry !== undefined) {
 			return await fromCallback(
 				(callback: (err: any, result?: NodeJS.ReadableStream) => void) => {
 					// yauzl does not support start / end for compressed entries
-					this.zip.openReadStream(entry, callback);
+					(cache ? this.cachedZip : this.zip).openReadStream(entry, callback);
 				},
 			);
 		}
 	}
 
-	private async getString(name: string): Promise<string | undefined> {
-		const stream = await this.getStream(name);
+	private async getString(name: string, cache: boolean = false): Promise<string | undefined> {
+		const stream = await this.getStream(name, cache);
 		if (stream !== undefined) {
 			const buffer = await streamToBuffer(stream);
 			return buffer.toString();
 		}
 	}
 
-	private async getJson(name: string): Promise<any> {
-		const data = await this.getString(name);
+	private async getJson(name: string, cache: boolean = false): Promise<any> {
+		const data = await this.getString(name, cache);
 		if (data !== undefined) {
 			return JSON.parse(data);
 		}
@@ -297,6 +318,7 @@ export class RandomAccessZipSource extends SourceSource {
 		generateChecksums = false,
 		alignment,
 		numBuffers,
+		forceDisableCache = false
 	}: CreateSparseReadStreamOptions = {}): Promise<SparseFilterStream> {
 		const metadata = await this.getMetadata();
 		if (metadata.blocks === undefined) {
@@ -311,7 +333,7 @@ export class RandomAccessZipSource extends SourceSource {
 		const stream = await this.createReadStream({
 			alignment,
 			numBuffers,
-			forceDisableCache: true
+			forceDisableCache
 		});
 		stream.pipe(transform);
 		return transform;
@@ -324,11 +346,11 @@ export class RandomAccessZipSource extends SourceSource {
 			compressedSize: entry.compressedSize,
 		};
 		const prefix = posix.join(posix.dirname(entry.fileName), '.meta');
-		result.logo = await this.getString(posix.join(prefix, 'logo.svg'));
+		result.logo = await this.getString(posix.join(prefix, 'logo.svg'), true);
 		result.instructions = await this.getString(
 			posix.join(prefix, 'instructions.markdown'),
 		);
-		const blockMap = await this.getString(posix.join(prefix, 'image.bmap'));
+		const blockMap = await this.getString(posix.join(prefix, 'image.bmap'), true);
 		if (blockMap !== undefined) {
 			result.blockMap = BlockMap.parse(blockMap);
 			result.blocks = blockmapToBlocks(result.blockMap);
@@ -336,7 +358,7 @@ export class RandomAccessZipSource extends SourceSource {
 		}
 		let manifest: any;
 		try {
-			manifest = await this.getJson(posix.join(prefix, 'manifest.json'));
+			manifest = await this.getJson(posix.join(prefix, 'manifest.json'), true);
 		} catch (error) {
 			throw new Error('Invalid archive manifest.json');
 		}
