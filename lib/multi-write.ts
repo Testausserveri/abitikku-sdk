@@ -15,7 +15,8 @@
  */
 
 import { promises as fs } from 'fs';
-import { extname } from 'path';
+import * as node_fs from 'fs';
+import { extname, join } from 'path';
 
 import { BlockReadStream } from './block-read-stream';
 import { BlockTransformStream } from './block-transform-stream';
@@ -39,6 +40,9 @@ import {
 	Verifier,
 } from './source-destination/source-destination';
 import { freeSpace, tmpFile } from './tmp';
+import {Http} from "./source-destination";
+import {getLocalStorage} from "./utils";
+import ReadableStream = NodeJS.ReadableStream;
 
 export type WriteStep = 'decompressing' | 'flashing' | 'verifying' | 'finished';
 
@@ -106,6 +110,61 @@ function defaultEnoughSpaceForDecompression(free: number, imageSize?: number) {
 		: imageSize < Math.min(free / 2, 5 * 1024 ** 3);
 }
 
+const configureCache = async (source: SourceDestination, sourceMetadata: Metadata) => {
+	let cache = source instanceof Http;
+	let cacheStream: node_fs.WriteStream | undefined;
+	let dataEnd: (() => void) | undefined;
+	let cacheFilePath: string | undefined = undefined;
+	if (cache) {
+		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "");
+		if (name) {
+			const localStorage = getLocalStorage();
+			await fs.mkdir(localStorage, { recursive: true });
+			const cacheFile = join(localStorage, name);
+
+			if (
+				!node_fs.existsSync(cacheFile) ||
+				node_fs.statSync(cacheFile).size !== sourceMetadata.size
+			) {
+				try {
+					const filePath = join(localStorage, name + '.part');
+					cacheStream = node_fs.createWriteStream(filePath);
+					dataEnd = () => node_fs.renameSync(filePath, cacheFile);
+				} catch (e) {}
+			} else {
+				cacheFilePath = cacheFile;
+			}
+		}
+	}
+
+	let inputStream: ReadableStream;
+	if (cacheFilePath === undefined) {
+		inputStream = await source.createReadStream({enableCache: true});
+	} else {
+		inputStream = await node_fs.createReadStream(cacheFilePath);
+	}
+
+	return {inputStream, cacheAvailable: cache, cacheStream, dataEnd}
+}
+
+export async function isCacheAvailableForSource(source: SourceDestination, sourceMetadata: Metadata) {
+	let cache = source instanceof Http;
+	if (cache) {
+		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "");
+		if (name) {
+			const localStorage = getLocalStorage();
+			await fs.mkdir(localStorage, { recursive: true });
+			const cacheFile = join(localStorage, name);
+
+			return (
+				node_fs.existsSync(cacheFile) &&
+				node_fs.statSync(cacheFile).size === sourceMetadata.size
+			)
+		}
+	}
+	return false;
+}
+
 export async function decompressThenFlash({
 	source,
 	destinations,
@@ -157,12 +216,18 @@ export async function decompressThenFlash({
 				write: true,
 			});
 			await decompressedSource.open();
-			const inputStream = await source.createReadStream({enableCache: true});
+
+			// Check for cache
+			const {cacheStream, inputStream, dataEnd} = await configureCache(source, sourceMetadata);
+
 			const outputStream = await decompressedSource.createWriteStream();
 			await new Promise((resolve, reject) => {
 				outputStream.on('done', resolve);
 				outputStream.on('error', reject);
 				inputStream.on('error', reject);
+				if (dataEnd) {
+					inputStream.on('end', dataEnd);
+				}
 				const state = {
 					active: 0,
 					failed: 0,
@@ -177,6 +242,9 @@ export async function decompressThenFlash({
 				getRootStream(inputStream).on('progress', onRootStreamProgress);
 				outputStream.on('progress', $onProgress);
 				inputStream.pipe(outputStream);
+				if (cacheStream) {
+					inputStream.pipe(cacheStream)
+				}
 			});
 			source = decompressedSource;
 		}
@@ -396,8 +464,7 @@ async function pipeRegularSourceToDestination(
 		source.createReadStream({
 			emitProgress: emitSourceProgress,
 			alignment,
-			numBuffers,
-			enableCache: true
+			numBuffers
 		}),
 		destination.createWriteStream({ highWaterMark }),
 	]);

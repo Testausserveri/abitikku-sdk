@@ -34,10 +34,6 @@ import {
 	SourceDestination,
 } from './source-destination';
 
-import { getLocalStorage } from '../utils';
-
-import * as fs from 'fs';
-import * as path from 'path';
 
 axios.defaults.adapter = axiosNodeAdapter;
 export class Http extends SourceDestination {
@@ -45,6 +41,7 @@ export class Http extends SourceDestination {
 	private fileName: string | undefined;
 	private url: string;
 	private redirectUrl: string;
+	// @ts-ignore
 	private useCache: boolean;
 	private avoidRandomAccess: boolean;
 	private size: number | undefined;
@@ -166,9 +163,8 @@ export class Http extends SourceDestination {
 		emitProgress = false,
 		start = 0,
 		end,
-		enableCache = false
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
-		let cacheStream: fs.WriteStream | undefined;
+		/*let cacheStream: fs.WriteStream | undefined;
 		let dataEnd: (() => void) | undefined;
 		if (this.useCache && enableCache) {
 			const name = (await this.getMetadata()).name;
@@ -190,7 +186,7 @@ export class Http extends SourceDestination {
 					} catch (e) {}
 				}
 			}
-		}
+		}*/
 
 		const response = await this.axiosInstance({
 			method: this.axiosInstance.defaults.method || 'get',
@@ -201,13 +197,13 @@ export class Http extends SourceDestination {
 			responseType: 'stream',
 		});
 
-		if (cacheStream) {
+		/*if (cacheStream) {
 			response.data.pipe(cacheStream);
 			response.data.pause();
 		}
 		if (dataEnd) {
 			response.data.on('end', dataEnd);
-		}
+		}*/
 		if (emitProgress) {
 			let bytes = 0;
 			let lastTime = Date.now();
