@@ -115,13 +115,14 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 	let cacheStream: node_fs.WriteStream | undefined;
 	let dataEnd: (() => void) | undefined;
 	let cacheFilePath: string | undefined = undefined;
-	if (cache) {
-		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "");
-		if (name) {
+	// Write metadata to fs
+	if (cache && sourceMetadata.name) {
+			const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "");
 			const localStorage = getLocalStorage();
 			await fs.mkdir(localStorage, { recursive: true });
 			const cacheFile = join(localStorage, name);
-
+			const cacheMetadataFile = join(localStorage, 'metadata.json');
+			await fs.writeFile(cacheMetadataFile, JSON.stringify(sourceMetadata));
 			if (
 				!node_fs.existsSync(cacheFile) ||
 				node_fs.statSync(cacheFile).size !== sourceMetadata.size
@@ -134,7 +135,6 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 			} else {
 				cacheFilePath = cacheFile;
 			}
-		}
 	}
 
 	let inputStream: ReadableStream;
@@ -149,20 +149,33 @@ const configureCache = async (source: SourceDestination, sourceMetadata: Metadat
 
 export async function isCacheAvailableForSource(source: SourceDestination, sourceMetadata: Metadata) {
 	let cache = source instanceof Http;
-	if (cache) {
+	if (cache && sourceMetadata.name) {
 		const name = sourceMetadata.name+(sourceMetadata.version !== undefined ? `-${sourceMetadata.version}` : "");
-		if (name) {
-			const localStorage = getLocalStorage();
-			await fs.mkdir(localStorage, { recursive: true });
-			const cacheFile = join(localStorage, name);
+		const localStorage = getLocalStorage();
+		await fs.mkdir(localStorage, { recursive: true });
+		const cacheFile = join(localStorage, name);
 
-			return (
-				node_fs.existsSync(cacheFile) &&
-				node_fs.statSync(cacheFile).size === sourceMetadata.size
-			)
-		}
+		return (
+			node_fs.existsSync(cacheFile) &&
+			node_fs.statSync(cacheFile).size === sourceMetadata.size
+		)
 	}
 	return false;
+}
+
+export async function getLocalCacheFile() {
+	try {
+		const localStorage = getLocalStorage();
+		const cacheMetadataFile = join(localStorage, 'metadata.json');
+		let metadata: Metadata = JSON.parse((await fs.readFile(cacheMetadataFile)).toString('utf-8'))
+		if (metadata && metadata.name && metadata.size) {
+			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "");
+			if (node_fs.existsSync(name) && node_fs.statSync(name).size === metadata.size) {
+				return name;
+			}
+		}
+	} catch (e) {}
+	return undefined;
 }
 
 export async function decompressThenFlash({
