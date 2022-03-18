@@ -42,7 +42,6 @@ import {
 import { freeSpace, tmpFile } from './tmp';
 import {Http} from "./source-destination";
 import {getLocalStorage} from "./utils";
-import {PassThrough} from "stream";
 
 export type WriteStep = 'decompressing' | 'flashing' | 'verifying' | 'finished';
 
@@ -253,10 +252,8 @@ export async function decompressThenFlash({
 				outputStream.on('done', resolve);
 				outputStream.on('error', reject);
 				inputStream.on('error', reject);
-				const passThrough = new PassThrough();
-				inputStream.pipe(passThrough);
 				if (dataEnd) {
-					passThrough.on('end', dataEnd);
+					outputStream.on('end', dataEnd);
 				}
 				const state = {
 					active: 0,
