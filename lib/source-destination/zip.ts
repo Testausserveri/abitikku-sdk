@@ -176,8 +176,8 @@ export class RandomAccessZipSource extends SourceSource {
 	private async init() {
 		await this.source.open();
 		const sourceMetadata = await this.source.getMetadata();
-		const cachedReader = new SourceRandomAccessReader(this.source);
-		const reader = new SourceRandomAccessReader(this.source, true);
+		const cachedReader = new SourceRandomAccessReader(this.source, true);
+		const reader = new SourceRandomAccessReader(this.source, false);
 		this.zip = await fromCallback((callback) => {
 			if (sourceMetadata.size === undefined) {
 				throw new NotCapable();
@@ -260,29 +260,29 @@ export class RandomAccessZipSource extends SourceSource {
 
 	private async getStream(
 		name: string,
-		cache: boolean = false
+		skipCache: boolean = false
 	): Promise<NodeJS.ReadableStream | undefined> {
 		const entry = await this.getEntryByName(name);
 		if (entry !== undefined) {
 			return await fromCallback(
 				(callback: (err: any, result?: NodeJS.ReadableStream) => void) => {
 					// yauzl does not support start / end for compressed entries
-					(cache ? this.cachedZip : this.zip).openReadStream(entry, callback);
+					(skipCache ? this.zip : this.cachedZip).openReadStream(entry, callback);
 				},
 			);
 		}
 	}
 
-	private async getString(name: string, cache: boolean = false): Promise<string | undefined> {
-		const stream = await this.getStream(name, cache);
+	private async getString(name: string, skipCache: boolean = false): Promise<string | undefined> {
+		const stream = await this.getStream(name, skipCache);
 		if (stream !== undefined) {
 			const buffer = await streamToBuffer(stream);
 			return buffer.toString();
 		}
 	}
 
-	private async getJson(name: string, cache: boolean = false): Promise<any> {
-		const data = await this.getString(name, cache);
+	private async getJson(name: string, skipCache: boolean = false): Promise<any> {
+		const data = await this.getString(name, skipCache);
 		if (data !== undefined) {
 			return JSON.parse(data);
 		}
