@@ -84,7 +84,7 @@ export class StreamZipSource extends SourceSource {
 	private async getEntry(cache: boolean = false): Promise<ZipStreamEntry> {
 		if (this.entry === undefined) {
 			const entry = await getFileStreamFromZipStream(
-				await this.source.createReadStream({enableCache: !cache}),
+				await this.source.createReadStream({enableCache: cache}),
 				this.match,
 			);
 			this.entry = entry;
@@ -117,7 +117,7 @@ export class StreamZipSource extends SourceSource {
 	}
 
 	protected async _getMetadata(): Promise<Metadata> {
-		const entry = await this.getEntry(true);
+		const entry = await this.getEntry(false);
 		return {
 			size: entry.size,
 			compressedSize: entry.compressedSize,
