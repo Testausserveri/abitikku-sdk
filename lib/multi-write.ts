@@ -176,8 +176,9 @@ export async function getLocalCacheFile(): Promise<{ name: string, metadata: Met
 		let metadata: Metadata = JSON.parse((await fs.readFile(cacheMetadataFile)).toString('utf-8'))
 		if (metadata && metadata.name && metadata.size) {
 			const name = metadata.name+(metadata.version !== undefined ? `-${metadata.version}` : "")+".cache";
-			if (node_fs.existsSync(name) && node_fs.statSync(name).size === metadata.size) {
-				return {name, metadata};
+			const cacheFile = join(localStorage, name);
+			if (node_fs.existsSync(cacheFile) && node_fs.statSync(cacheFile).size === metadata.size) {
+				return {name: cacheFile, metadata};
 			}
 		}
 	} catch (e) {}
