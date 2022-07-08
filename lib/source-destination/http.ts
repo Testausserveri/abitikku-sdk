@@ -170,7 +170,6 @@ export class Http extends SourceDestination {
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
 		let cacheStream: fs.WriteStream | undefined;
 		let dataEnd: (() => void) | undefined;
-		console.log("Http createReadStream", start, end, enableCache)
 		// When writing image, no end is defined
 		if (enableCache && end === undefined) {
 			const name = (await this.getMetadata()).name;
