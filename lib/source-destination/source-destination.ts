@@ -28,10 +28,10 @@ import {
 } from '../aligned-lockable-buffer';
 import { CHUNK_SIZE, XXHASH_SEED } from '../constants';
 import { ChecksumVerificationError, NotCapable } from '../errors';
-import { BlocksWithChecksum, SparseReadable } from '../sparse-stream/shared';
-import { SparseWritable } from '../sparse-stream/shared';
-import { SparseFilterStream } from '../sparse-stream/sparse-filter-stream';
-import { SparseReadStream } from '../sparse-stream/sparse-read-stream';
+import { BlocksWithChecksum, SparseReadable } from '../sparse-stream';
+import { SparseWritable } from '../sparse-stream';
+import { SparseFilterStream } from '../sparse-stream';
+import { SparseReadStream } from '../sparse-stream';
 import { asCallback, fromCallback, streamToBuffer } from '../utils';
 
 import { Metadata } from './metadata';
@@ -284,14 +284,12 @@ export interface CreateReadStreamOptions {
 	end?: number;
 	alignment?: number;
 	numBuffers?: number;
-	enableCache?: boolean;
 }
 
 export interface CreateSparseReadStreamOptions {
 	generateChecksums?: boolean;
 	alignment?: number;
 	numBuffers?: number;
-	enableCache?: boolean;
 }
 
 export class SourceDestination extends EventEmitter {

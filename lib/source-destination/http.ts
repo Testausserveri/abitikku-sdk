@@ -133,7 +133,7 @@ export class Http extends SourceDestination {
 		};
 	}
 
-	private getRange(start = 0, end?: number) {
+	private static getRange(start = 0, end?: number) {
 		// start and end are inclusive
 		let range = `bytes=${start}-`;
 		if (end !== undefined) {
@@ -153,7 +153,7 @@ export class Http extends SourceDestination {
 			url: this.redirectUrl,
 			responseType: 'arraybuffer',
 			headers: {
-				Range: this.getRange(sourceOffset, sourceOffset + length - 1),
+				Range: Http.getRange(sourceOffset, sourceOffset + length - 1),
 			},
 		});
 		const bytesRead = response.data.length;
@@ -165,13 +165,12 @@ export class Http extends SourceDestination {
 	public async createReadStream({
 		emitProgress = false,
 		start = 0,
-		end,
-		enableCache
+		end
 	}: CreateReadStreamOptions = {}): Promise<NodeJS.ReadableStream> {
 		let cacheStream: fs.WriteStream | undefined;
 		let dataEnd: (() => void) | undefined;
 		// When writing image, no end is defined
-		if (enableCache && end === undefined) {
+		if (this.useCache && end === undefined) {
 			const name = (await this.getMetadata()).name;
 			if (name) {
 				const localStorage = getLocalStorage();
@@ -197,7 +196,7 @@ export class Http extends SourceDestination {
 			method: this.axiosInstance.defaults.method || 'get',
 			url: this.redirectUrl,
 			headers: {
-				Range: this.getRange(start, end),
+				Range: Http.getRange(start, end),
 			},
 			responseType: 'stream',
 		});

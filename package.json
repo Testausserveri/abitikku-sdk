@@ -1,6 +1,6 @@
 {
   "name": "abitikku-sdk",
-  "version": "7.2.9",
+  "version": "7.3",
   "description": "Etcher SDK",
   "author": "Testausserveri <masterminds@testausserveri.fi> (https://testausserveri.fi)",
   "main": "build/index.js",
