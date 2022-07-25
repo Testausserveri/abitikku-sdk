@@ -1,6 +1,6 @@
 {
   "name": "abitikku-sdk",
-  "version": "7.3.0",
+  "version": "7.3.1",
   "description": "Etcher SDK",
   "author": "Testausserveri <masterminds@testausserveri.fi> (https://testausserveri.fi)",
   "main": "build/index.js",
@@ -45,7 +45,7 @@
     "winusb-driver-generator": "^1.2.3"
   },
   "dependencies": {
-    "@balena/node-beaglebone-usbboot": "^1.0.3",
+    "@balena/node-beaglebone-usbboot": "^2.0.0",
     "@balena/udif": "^1.1.1",
     "@ronomon/direct-io": "^3.0.1",
     "aws4-axios": "^2.0.1",
